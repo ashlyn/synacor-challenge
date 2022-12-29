@@ -4,6 +4,7 @@
 	"name": "Go",
 	// Or use a Dockerfile or Docker Compose file. More info: https://containers.dev/guide/dockerfile
 	"image": "mcr.microsoft.com/devcontainers/go:0-1-bullseye",
+	"postCreateCommand": "git config --global gpg.program `which gpg`",
 	"features": {
 		"ghcr.io/devcontainers/features/go:1": {},
 		"ghcr.io/devcontainers-contrib/features/zsh-plugins:0": {}
