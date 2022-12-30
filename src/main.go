@@ -17,7 +17,10 @@ func main() {
 	vm := virtualmachine.NewVirtualMachine(reader)
 	// vm.LoadTestProgram("9,32768,32769,43,19,32768")
 	vm.LoadProgram(f)
-	vm.Execute(false)
+	err = vm.Execute(true)
+	if err != nil {
+		panic(err)
+	}
 	
 	defer f.Close()
 }

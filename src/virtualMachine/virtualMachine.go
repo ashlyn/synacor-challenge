@@ -115,6 +115,10 @@ func (vm *VirtualMachine) Execute(debug bool) error {
 		case 21:
 			vm.noop()
 		default:
+			if debug {
+				fmt.Println(vm.memory[vm.currentInstruction-5:vm.currentInstruction])
+				fmt.Println(vm.memory[vm.currentInstruction:vm.currentInstruction+5])
+			}
 			return fmt.Errorf("Unrecognized op code %d", vm.memory[vm.currentInstruction])
 		}
 	}
@@ -131,6 +135,9 @@ func (vm *VirtualMachine) Execute(debug bool) error {
 func (vm *VirtualMachine) writeValueToAddress(value int, address int) {
 	isRegister, regAddress := isRegisterAddress(address)
 	if isRegister {
+		if regAddress == 7 {
+			fmt.Println(vm.registers)
+		}
 		vm.registers[regAddress] = value
 	} else {
 		vm.memory[address] = value
@@ -206,7 +213,7 @@ func (vm *VirtualMachine) jt() {
 	if a != 0 {
 		vm.currentInstruction = vm.value(vm.memory[vm.currentInstruction+2])
 	} else {
-		vm.currentInstruction += 2
+		vm.currentInstruction += 3
 	}
 }
 
@@ -215,7 +222,7 @@ func (vm *VirtualMachine) jf() {
 	if a == 0 {
 		vm.currentInstruction = vm.value(vm.memory[vm.currentInstruction+2])
 	} else {
-		vm.currentInstruction += 2
+		vm.currentInstruction += 3
 	}
 }
 
@@ -233,7 +240,7 @@ func (vm *VirtualMachine) mult() {
 
 func (vm *VirtualMachine) mod() {
 	a, b, c := vm.memory[vm.currentInstruction+1], vm.value(vm.memory[vm.currentInstruction+2]), vm.value(vm.memory[vm.currentInstruction+3])
-	vm.writeValueToAddress((b % c) % modValue, a)
+	vm.writeValueToAddress(b % c, a)
 	vm.currentInstruction += 4
 }
 
@@ -245,13 +252,18 @@ func (vm *VirtualMachine) and() {
 
 func (vm *VirtualMachine) or() {
 	a, b, c := vm.memory[vm.currentInstruction+1], vm.value(vm.memory[vm.currentInstruction+2]), vm.value(vm.memory[vm.currentInstruction+3])
-	vm.writeValueToAddress((b | c) % modValue, a)
+	vm.writeValueToAddress(b | c, a)
 	vm.currentInstruction += 4
 }
 
 func (vm *VirtualMachine) not() {
 	a, b := vm.memory[vm.currentInstruction+1], vm.value(vm.memory[vm.currentInstruction+2])
-	vm.writeValueToAddress((^b) % modValue, a)
+	bStr := fmt.Sprintf("%015b", b)
+	bStr = strings.ReplaceAll(bStr, "0", "-")
+	bStr = strings.ReplaceAll(bStr, "1", "0")
+	bStr = strings.ReplaceAll(bStr, "-", "1")
+	value, _ := strconv.ParseUint(bStr, 2, 15)
+	vm.writeValueToAddress(int(value), a)
 	vm.currentInstruction += 3
 }
 
@@ -263,7 +275,7 @@ func (vm *VirtualMachine) rmem() {
 
 func (vm *VirtualMachine) wmem() {
 	a, b := vm.memory[vm.currentInstruction+1], vm.value(vm.memory[vm.currentInstruction+2])
-	vm.writeValueToAddress(b, a)
+	vm.writeValueToAddress(b, vm.value(a))
 	vm.currentInstruction += 3
 }
 

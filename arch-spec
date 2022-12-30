@@ -7,7 +7,7 @@ your progress.  Good luck!
 
 == architecture ==
 - three storage regions
-  - memory with 15-bit address space storing 16-bit values
+  - m15-emory with bit address space storing 16-bit values
   - eight registers
   - an unbounded stack which holds individual 16-bit values
 - all numbers are unsigned integers 0..32767 (15-bit)
