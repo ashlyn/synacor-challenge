@@ -10,6 +10,20 @@ Two destinations:
 Need to extract confirmation algorithm, reimplement, and optimize it.
 Set the eighth register, activate teleporter, bypass confirmation.
 
+by default, register 7 (8) is always 0 and is read from twice
+
+first after reading `teleporter`
+`eq Reading value 114 from register 4`
+
+with a different value
+```
+A strange, electronic voice is projected into your mind:
+
+  "Unusual setting detected!  Starting confirmation process!  Estimated time to completion: 1 billion years."
+```
+look for `(")` in logs to find algo
+reg 1 inc by 1
+
 ```
 The cover of this book subtly swirls with colors.  It is titled "A Brief Introduction to Interdimensional Physics".  It reads:
 

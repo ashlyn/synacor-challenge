@@ -48,6 +48,8 @@ ladder, darkness, keep west
 
 north, coin
 north
+west blue
+east concave, down corroded
 _ + _ * _^2 + _^3 - _ = 399
 red coin: 2 dots
 corroded: triangle = 3
@@ -56,8 +58,9 @@ blue: 9 dots
 shiny: pentagon = 5
 
 [9 2 5 7 3]
+blue red shiny concave corroded
 
-up
+up shiny
 
 north locked
 teleporter -> synacor headquarters

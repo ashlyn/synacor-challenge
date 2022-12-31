@@ -19,16 +19,18 @@ type VirtualMachine struct {
 	registers [8]int
 	stack []int
 	reader *bufio.Reader
+	logFile *bufio.Writer
 }
 
 // NewVirtualMachine creates a new VirtualMachine
-func NewVirtualMachine(reader *bufio.Reader) *VirtualMachine {
+func NewVirtualMachine(reader *bufio.Reader, writer *bufio.Writer) *VirtualMachine {
 	vm := VirtualMachine{
 		currentInstruction: 0,
 		memory: []int{},
 		registers: [8]int{},
 		stack: []int{},
 		reader: reader,
+		logFile: writer,
 	}
 	return &vm
 }
@@ -60,59 +62,104 @@ func (vm *VirtualMachine) LoadTestProgram(input string) {
 	}
 }
 
+// SetEnergyLevel Allows the energy level (register 8) value to be set manually
+func (vm *VirtualMachine) SetEnergyLevel(energyLevel int) {
+	vm.registers[7] = energyLevel
+}
+
 // PrintMemoryHead is a debugging tool which prints the first 10 memory items
 func (vm *VirtualMachine) PrintMemoryHead() {
 	tail := int(math.Min(11, float64(len(vm.memory))))
 	fmt.Println(vm.memory[:tail])
 }
 
+// MemoryDump is a debugging tool which dumps the current memory contents to a specified file
+func (vm *VirtualMachine) MemoryDump(dump *bufio.Writer) error {
+	for _, m := range vm.memory {
+		op := OpCode(m)
+		var err error
+		if op.String() == "unknown" {
+			_, err = dump.WriteString(fmt.Sprintf("%d\n", m))
+		} else {
+			dump.WriteString(fmt.Sprintf("%s (%d)\n", op, m))
+		}
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// WriteAssembly is a debugging tool which writes the assembly code for the current memory contents
+func (vm *VirtualMachine) WriteAssembly(dump *bufio.Writer) error {
+	for i := 0; i < len(vm.memory); i++ {
+		op := OpCode(vm.memory[i])
+		args := op.arguments()
+		line := op.String()
+		if line == "unknown" {
+			line = fmt.Sprint(vm.memory[i])
+		}
+		for j := 1; j <= args; j++ {
+			i++
+			line += " " + fmt.Sprint(vm.memory[i])
+		}
+		_, err := dump.WriteString(line + "\n")
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // Execute runs the program in memory
 func (vm *VirtualMachine) Execute(debug bool) error {
 	for vm.currentInstruction < len(vm.memory) {
-		switch vm.memory[vm.currentInstruction] {
-		case 0:
+		op := OpCode(vm.memory[vm.currentInstruction])
+		vm.logFile.WriteString(op.String() + " ")
+		switch op {
+		case Halt:
 			return nil
-		case 1:
+		case Set:
 			vm.set()
-		case 2:
+		case Push:
 			vm.push()
-		case 3:
+		case Pop:
 			vm.pop()
-		case 4:
+		case Eq:
 			vm.eq()
-		case 5:
+		case Gt:
 			vm.gt()
-		case 6:
+		case Jmp:
 			vm.jmp()
-		case 7:
+		case Jt:
 			vm.jt()
-		case 8:
+		case Jf:
 			vm.jf()
-		case 9:
+		case Add:
 			vm.add()
-		case 10:
+		case Mult:
 			vm.mult()
-		case 11:
+		case Mod:
 			vm.mod()
-		case 12:
+		case And:
 			vm.and()
-		case 13:
+		case Or:
 			vm.or()
-		case 14:
+		case Not:
 			vm.not()
-		case 15:
+		case Rmem:
 			vm.rmem()
-		case 16:
+		case Wmem:
 			vm.wmem()
-		case 17:
+		case Call:
 			vm.call()
-		case 18:
+		case Ret:
 			vm.ret()
-		case 19:
+		case Out:
 			vm.out()
-		case 20:
+		case In:
 			vm.in()
-		case 21:
+		case Noop:
 			vm.noop()
 		default:
 			if debug {
@@ -121,6 +168,7 @@ func (vm *VirtualMachine) Execute(debug bool) error {
 			}
 			return fmt.Errorf("Unrecognized op code %d", vm.memory[vm.currentInstruction])
 		}
+		vm.logFile.WriteString("\n")
 	}
 
 	if debug {
@@ -132,14 +180,20 @@ func (vm *VirtualMachine) Execute(debug bool) error {
 	return nil
 }
 
+func (vm *VirtualMachine) next() int {
+	value := vm.memory[vm.currentInstruction]
+	vm.currentInstruction++
+	return value
+}
+
 func (vm *VirtualMachine) writeValueToAddress(value int, address int) {
 	isRegister, regAddress := isRegisterAddress(address)
 	if isRegister {
-		if regAddress == 7 {
-			fmt.Println(vm.registers)
-		}
+		vm.logFile.WriteString(fmt.Sprintf("Writing value %d to register %d\n", value, regAddress))
+		vm.logFile.WriteString(fmt.Sprintf("%v\n", vm.registers))
 		vm.registers[regAddress] = value
 	} else {
+		vm.logFile.WriteString(fmt.Sprintf("Writing value %d to memory address %d\n", value, address))
 		vm.memory[address] = value
 	}
 }
@@ -147,6 +201,7 @@ func (vm *VirtualMachine) writeValueToAddress(value int, address int) {
 func (vm *VirtualMachine) value(address int) int {
 	isRegister, registerAddress := isRegisterAddress(address)
 	if isRegister {
+		vm.logFile.WriteString(fmt.Sprintf("Reading value %d from register %d\n", vm.registers[registerAddress], registerAddress))
 		return vm.registers[registerAddress]
 	} else if address >= 0 && address <= 32767 {
 		return address
@@ -164,12 +219,14 @@ func isRegisterAddress(address int) (bool, int) {
 
 func (vm *VirtualMachine) set() {
 	a, b := vm.memory[vm.currentInstruction+1], vm.value(vm.memory[vm.currentInstruction+2])
+	vm.logFile.WriteString(fmt.Sprintf("%d %d\n", a, b))
 	vm.writeValueToAddress(b, a)
 	vm.currentInstruction += 3
 }
 
 func (vm *VirtualMachine) push() {
 	a := vm.value(vm.memory[vm.currentInstruction+1])
+	vm.logFile.WriteString(fmt.Sprintf("%d\n", a))
 	vm.stack = append([]int{a}, vm.stack...)
 	vm.currentInstruction += 2
 }
@@ -180,12 +237,15 @@ func (vm *VirtualMachine) pop() {
 	}
 	value := vm.stack[0]
 	vm.stack = vm.stack[1:]
-	vm.writeValueToAddress(value, vm.memory[vm.currentInstruction+1])
+	a := vm.memory[vm.currentInstruction+1]
+	vm.logFile.WriteString(fmt.Sprintf("%d\n", a))
+	vm.writeValueToAddress(value, a)
 	vm.currentInstruction += 2
 }
 
 func (vm *VirtualMachine) eq() {
 	a, b, c := vm.memory[vm.currentInstruction+1], vm.value(vm.memory[vm.currentInstruction+2]), vm.value(vm.memory[vm.currentInstruction+3])
+	vm.logFile.WriteString(fmt.Sprintf("%d %d %d\n", a, b, c))
 	if b == c {
 		vm.writeValueToAddress(1, a)
 	} else {
@@ -196,6 +256,7 @@ func (vm *VirtualMachine) eq() {
 
 func (vm *VirtualMachine) gt() {
 	a, b, c := vm.memory[vm.currentInstruction+1], vm.value(vm.memory[vm.currentInstruction+2]), vm.value(vm.memory[vm.currentInstruction+3])
+	vm.logFile.WriteString(fmt.Sprintf("%d %d %d\n", a, b, c))
 	if b > c {
 		vm.writeValueToAddress(1, a)
 	} else {
@@ -205,22 +266,30 @@ func (vm *VirtualMachine) gt() {
 }
 
 func (vm *VirtualMachine) jmp() {
-	vm.currentInstruction = vm.value(vm.memory[vm.currentInstruction+1])
+	a := vm.value(vm.memory[vm.currentInstruction+1])
+	vm.logFile.WriteString(fmt.Sprintf("%d\n", a))
+	vm.currentInstruction = vm.value(a)
 }
 
 func (vm *VirtualMachine) jt() {
-	a := vm.value(vm.memory[vm.currentInstruction+1])
-	if a != 0 {
-		vm.currentInstruction = vm.value(vm.memory[vm.currentInstruction+2])
+	a, b := vm.value(vm.memory[vm.currentInstruction+1]), vm.value(vm.memory[vm.currentInstruction+2])
+	isReg, regAddress := isRegisterAddress(vm.memory[vm.currentInstruction+1])
+	vm.logFile.WriteString(fmt.Sprintf("%d %d\n", a, b))
+	if isReg && regAddress == 7 && a != 0 && b == 1093 {
+		// bypass reg 8 check in tests
+		vm.currentInstruction += 3
+	} else if a != 0 {
+		vm.currentInstruction = b
 	} else {
 		vm.currentInstruction += 3
 	}
 }
 
 func (vm *VirtualMachine) jf() {
-	a := vm.value(vm.memory[vm.currentInstruction+1])
+	a, b := vm.value(vm.memory[vm.currentInstruction+1]), vm.value(vm.memory[vm.currentInstruction+2])
+	vm.logFile.WriteString(fmt.Sprintf("%d %d\n", a, b))
 	if a == 0 {
-		vm.currentInstruction = vm.value(vm.memory[vm.currentInstruction+2])
+		vm.currentInstruction = b
 	} else {
 		vm.currentInstruction += 3
 	}
@@ -228,36 +297,42 @@ func (vm *VirtualMachine) jf() {
 
 func (vm *VirtualMachine) add() {
 	a, b, c := vm.memory[vm.currentInstruction+1], vm.value(vm.memory[vm.currentInstruction+2]), vm.value(vm.memory[vm.currentInstruction+3])
+	vm.logFile.WriteString(fmt.Sprintf("%d %d %d\n", a, b, c))
 	vm.writeValueToAddress((b + c) % modValue, a)
 	vm.currentInstruction += 4
 }
 
 func (vm *VirtualMachine) mult() {
 	a, b, c := vm.memory[vm.currentInstruction+1], vm.value(vm.memory[vm.currentInstruction+2]), vm.value(vm.memory[vm.currentInstruction+3])
+	vm.logFile.WriteString(fmt.Sprintf("%d %d %d\n", a, b, c))
 	vm.writeValueToAddress((b * c) % modValue, a)
 	vm.currentInstruction += 4
 }
 
 func (vm *VirtualMachine) mod() {
 	a, b, c := vm.memory[vm.currentInstruction+1], vm.value(vm.memory[vm.currentInstruction+2]), vm.value(vm.memory[vm.currentInstruction+3])
+	vm.logFile.WriteString(fmt.Sprintf("%d %d %d\n", a, b, c))
 	vm.writeValueToAddress(b % c, a)
 	vm.currentInstruction += 4
 }
 
 func (vm *VirtualMachine) and() {
 	a, b, c := vm.memory[vm.currentInstruction+1], vm.value(vm.memory[vm.currentInstruction+2]), vm.value(vm.memory[vm.currentInstruction+3])
+	vm.logFile.WriteString(fmt.Sprintf("%d %d %d\n", a, b, c))
 	vm.writeValueToAddress(b & c, a)
 	vm.currentInstruction += 4
 }
 
 func (vm *VirtualMachine) or() {
 	a, b, c := vm.memory[vm.currentInstruction+1], vm.value(vm.memory[vm.currentInstruction+2]), vm.value(vm.memory[vm.currentInstruction+3])
+	vm.logFile.WriteString(fmt.Sprintf("%d %d %d\n", a, b, c))
 	vm.writeValueToAddress(b | c, a)
 	vm.currentInstruction += 4
 }
 
 func (vm *VirtualMachine) not() {
 	a, b := vm.memory[vm.currentInstruction+1], vm.value(vm.memory[vm.currentInstruction+2])
+	vm.logFile.WriteString(fmt.Sprintf("%d %d\n", a, b))
 	bStr := fmt.Sprintf("%015b", b)
 	bStr = strings.ReplaceAll(bStr, "0", "-")
 	bStr = strings.ReplaceAll(bStr, "1", "0")
@@ -269,18 +344,21 @@ func (vm *VirtualMachine) not() {
 
 func (vm *VirtualMachine) rmem() {
 	a, b := vm.memory[vm.currentInstruction+1], vm.value(vm.memory[vm.currentInstruction+2])
+	vm.logFile.WriteString(fmt.Sprintf("%d %d\n", a, b))
 	vm.writeValueToAddress(vm.value(vm.memory[b]), a)
 	vm.currentInstruction += 3
 }
 
 func (vm *VirtualMachine) wmem() {
 	a, b := vm.memory[vm.currentInstruction+1], vm.value(vm.memory[vm.currentInstruction+2])
+	vm.logFile.WriteString(fmt.Sprintf("%d %d\n", a, b))
 	vm.writeValueToAddress(b, vm.value(a))
 	vm.currentInstruction += 3
 }
 
 func (vm *VirtualMachine) call() {
 	a := vm.value(vm.memory[vm.currentInstruction+1])
+	vm.logFile.WriteString(fmt.Sprintf("%d\n", a))
 	vm.stack = append([]int{vm.currentInstruction+2}, vm.stack...)
 	vm.currentInstruction = a
 }
@@ -291,11 +369,13 @@ func (vm *VirtualMachine) ret() {
 	}
 	value := vm.stack[0]
 	vm.stack = vm.stack[1:]
+	vm.logFile.WriteString(fmt.Sprintf("%d\n", value))
 	vm.currentInstruction = value
 }
 
 func (vm *VirtualMachine) out() {
 	a := vm.value(vm.memory[vm.currentInstruction+1])
+	vm.logFile.WriteString(fmt.Sprintf("%d (%s)\n", a, string(rune(a))))
 	fmt.Print(string(rune(a)))
 	vm.currentInstruction += 2
 }
@@ -303,6 +383,7 @@ func (vm *VirtualMachine) out() {
 func (vm *VirtualMachine) in() {
 	a := vm.memory[vm.currentInstruction+1]
 	char, _, err := vm.reader.ReadRune()
+	vm.logFile.WriteString(fmt.Sprintf("%d (%s)\n", a, string(char)))
 	if err != nil {
 		panic(err)
 	}
