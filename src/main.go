@@ -46,6 +46,7 @@ func createAutomatedGame(debug bool) *virtualmachine.VirtualMachine {
 	dump, dumpErr := os.Create("notes/memoryDump.log")
 	dumpWriter := bufio.NewWriter(dump)
 	dumpErr = vm.MemoryDump(dumpWriter)
+	// OR	dumpErr = vm.WriteAssembly(dumpWriter)
 	if dumpErr != nil {
 		panic(dumpErr)
 	}

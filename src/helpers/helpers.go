@@ -171,20 +171,6 @@ func pathToString(path [][2]int, grid [][]int) (string, string) {
 	return str, dirStr
 }
 
-func contains(coords [2]int, path [][2]int, grid [][]int) bool {
-	value := getValueFromGrid(coords, grid)
-	if value == '-' || value == '+' || value == '*' {
-		return false
-	}
-	
-	keys := map[string]int{}
-	for _, p := range path {
-		keys[fmt.Sprint(p)]++
-	}
-	_, has := keys[fmt.Sprint(coords)]
-	return has
-}
-
 func getDirection(vec [2]int) string {
 	x, y := vec[0], vec[1]
 	if x == 0 && y == 1 {
