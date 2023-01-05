@@ -47,3 +47,32 @@ use corroded coin
 north
 take teleporter
 use teleporter
+north
+north
+north
+north
+north
+north
+north
+east
+take journal
+use journal
+west
+north
+north
+take orb
+north
+east
+east
+north
+west
+south
+east
+east
+west
+north
+north
+east
+vault
+take mirror
+use mirror

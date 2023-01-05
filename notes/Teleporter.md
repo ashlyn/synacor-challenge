@@ -15,6 +15,33 @@ by default, register 7 (8) is always 0 and is read from twice
 first after reading `teleporter`
 `eq Reading value 114 from register 4`
 
+`call 6027` seems important, right before that, `set r0 4` `set r1 1`, right after that `eq r1 r0 6`
+
+using a hammer to just set r0 to 6 with an arbitrary r7 gives bad code (e.g. `uXWjUDMpMpyd` for 1000), code must be derived from r7. BUT you end up on the beach, so I could potentially pursue code 8 instead
+```
+r0, r1 = 4, 1
+func myFunc() {
+  if r0 != 0 {
+    if r1 != 0 {
+      stack.push(r0)
+      r1 = r1 + 32767
+      myFunc()
+      r1 = r0
+      r0 = stack.pop()
+      r0 = r0 + 32767
+      myFunc()
+      return
+    }
+    r0 = r0 + 32767
+    r1 = r7
+    myFunc()
+    return
+  }
+  r0 = r1 + 1
+  return
+}
+```
+
 with a different value
 ```
 A strange, electronic voice is projected into your mind:
@@ -23,6 +50,7 @@ A strange, electronic voice is projected into your mind:
 ```
 look for `(")` in logs to find algo
 reg 1 inc by 1
+`pop \(3\)\n32769\nret \(18\)\nadd` search in memoryDump
 
 ```
 The cover of this book subtly swirls with colors.  It is titled "A Brief Introduction to Interdimensional Physics".  It reads:
